@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asset Ledger — Equipment Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#10151F;
+    --ink-soft:#1B2230;
+    --steel:#3A4756;
+    --steel-soft:#62707F;
+    --teal:#1F6F78;
+    --teal-soft:#2C8C96;
+    --amber:#E4A93B;
+    --rust:#C1502E;
+    --cloud:#F6F7F9;
+    --white:#FFFFFF;
+    --border:#E2E5EA;
+    --mono:'IBM Plex Mono',monospace;
+    --sans:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:var(--cloud);color:var(--ink);}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  /* ---------- Login screen ---------- */
+  #loginScreen, #resetPasswordScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 40px),
+      radial-gradient(circle at 20% 20%, #1B2230, var(--ink) 60%);
+  }
+  .login-card{
+    width:380px;background:var(--white);border-radius:4px;padding:36px 32px;
+    box-shadow:0 24px 60px rgba(0,0,0,.35);
+  }
+  .login-tag{
+    display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
+    font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;
+    border:1px dashed var(--teal);padding:4px 10px;border-radius:2px;margin-bottom:18px;
+  }
+  .login-card h1{font-size:22px;margin:0 0 4px;font-weight:800;letter-spacing:-.01em;}
+  .login-card p.sub{margin:0 0 24px;color:var(--steel-soft);font-size:13.5px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--steel);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+  .field input, .field select, .field textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:3px;font-size:14px;background:var(--cloud);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--teal);outline-offset:1px;background:var(--white);}
+  .btn{
+    border:none;border-radius:3px;padding:10px 16px;font-size:13.5px;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;transition:opacity .15s;
+  }
+  .btn:hover{opacity:.88;}
+  .btn-primary{background:var(--teal);color:#fff;}
+  .btn-block{width:100%;justify-content:center;padding:11px;}
+  .btn-ghost{background:transparent;color:var(--steel);border:1px solid var(--border);}
+  .btn-danger{background:var(--rust);color:#fff;}
+  .btn-amber{background:var(--amber);color:var(--ink);}
+  .btn-sm{padding:6px 10px;font-size:12.5px;}
+  .error-box{background:#FBE9E4;color:var(--rust);border:1px solid #F1C6B8;padding:10px 12px;border-radius:3px;font-size:13px;margin-bottom:14px;}
+  .hint{font-size:12px;color:var(--steel-soft);margin-top:14px;text-align:center;}
+  .hint code{background:var(--cloud);padding:1px 5px;border-radius:2px;font-family:var(--mono);}
+
+  /* ---------- App shell ---------- */
+  #app{display:none;min-height:100vh;}
+  .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
+  .sidebar{
+    background:var(--ink);color:#B9C2CE;padding:22px 16px;display:flex;flex-direction:column;
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:26px;padding:0 6px;}
+  .brand-mark{
+    width:30px;height:30px;border:1.5px dashed var(--teal-soft);border-radius:4px;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);
+    font-size:11px;color:var(--teal-soft);font-weight:600;
+  }
+  .brand-name{font-weight:800;font-size:15px;color:#fff;letter-spacing:-.01em;}
+  .brand-sub{font-family:var(--mono);font-size:10px;color:var(--steel-soft);letter-spacing:.08em;}
+  nav.navlist{display:flex;flex-direction:column;gap:2px;flex:1;}
+  nav.navlist button{
+    all:unset;cursor:pointer;padding:10px 12px;border-radius:4px;font-size:13.5px;font-weight:500;
+    display:flex;align-items:center;gap:10px;color:#B9C2CE;
+  }
+  nav.navlist button .ico{font-family:var(--mono);font-size:11px;width:18px;color:var(--teal-soft);}
+  nav.navlist button:hover{background:var(--ink-soft);color:#fff;}
+  nav.navlist button.active{background:var(--ink-soft);color:#fff;box-shadow:inset 3px 0 0 var(--amber);}
+  .side-foot{border-top:1px solid #232B3A;padding-top:14px;margin-top:10px;}
+  .side-user{font-size:12.5px;color:#fff;font-weight:600;}
+  .side-role{font-family:var(--mono);font-size:10.5px;color:var(--teal-soft);text-transform:uppercase;letter-spacing:.06em;}
+  .side-foot button{margin-top:10px;}
+
+  main{padding:26px 32px 60px;overflow-x:hidden;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+  .topbar h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em;}
+  .topbar .eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  .toolbar input[type=text], .toolbar select{
+    padding:8px 12px;border:1px solid var(--border);border-radius:3px;font-size:13.5px;background:var(--white);
+  }
+
+  .card{background:var(--white);border:1px solid var(--border);border-radius:5px;padding:18px 20px;}
+  .grid-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px;}
+  .stat-card{
+    background:var(--white);border:1px solid var(--border);border-radius:5px;padding:16px 16px 14px;
+    position:relative;overflow:hidden;
+  }
+  .stat-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal);}
+  .stat-card.alert::before{background:var(--amber);}
+  .stat-label{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--steel-soft);}
+  .stat-value{font-size:26px;font-weight:800;margin-top:6px;letter-spacing:-.02em;}
+
+  .panels-2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:20px;}
+  .panel-title{font-size:13px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;}
+  .panel-title span.eyebrow{font-family:var(--mono);font-size:10px;color:var(--steel-soft);font-weight:500;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{
+    text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--steel-soft);padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600;
+  }
+  td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:hover td{background:#FAFBFC;}
+  .id-tag{font-family:var(--mono);font-size:12px;color:var(--teal);background:#EAF4F4;padding:2px 7px;border-radius:3px;border:1px dashed var(--teal-soft);}
+
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block;text-transform:uppercase;letter-spacing:.03em;}
+  .badge-available{background:#E4F3E9;color:#1E7A45;}
+  .badge-inuse{background:#E7EFFB;color:#2854A6;}
+  .badge-repair{background:#FBF0DA;color:#96700F;}
+  .badge-retired{background:#F1E4E4;color:#8A3B3B;}
+  .badge-role{background:#EAF4F4;color:var(--teal);}
+
+  .empty-state{text-align:center;padding:40px 20px;color:var(--steel-soft);}
+  .empty-state .glyph{font-family:var(--mono);font-size:26px;color:var(--border);margin-bottom:8px;}
+
+  /* asset-tag style equipment rows */
+  .tag-row{
+    display:flex;align-items:center;gap:14px;border:1px solid var(--border);border-left:3px dashed var(--teal-soft);
+    border-radius:4px;padding:12px 14px;margin-bottom:10px;background:#fff;cursor:pointer;transition:box-shadow .15s;
+  }
+  .tag-row:hover{box-shadow:0 4px 14px rgba(16,21,31,.08);}
+  .tag-qr{width:44px;height:44px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;}
+  .tag-main{flex:1;min-width:0;}
+  .tag-main .tname{font-weight:700;font-size:14.5px;}
+  .tag-main .tmeta{font-size:12px;color:var(--steel-soft);margin-top:2px;}
+  .tag-qty{font-family:var(--mono);font-size:12.5px;color:var(--steel);text-align:right;min-width:70px;}
+  .tag-qty b{font-size:15px;color:var(--ink);}
+
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(16,21,31,.55);z-index:50;
+    align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{background:#fff;border-radius:6px;width:100%;max-width:520px;padding:26px 26px 22px;box-shadow:0 30px 70px rgba(0,0,0,.4);}
+  .modal h3{margin:0 0 4px;font-size:17px;font-weight:800;}
+  .modal .modal-sub{font-size:12.5px;color:var(--steel-soft);margin:0 0 18px;}
+  .modal-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+  .modal-close{position:absolute;}
+
+  .detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
+  .detail-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .chip-list{display:flex;gap:8px;flex-wrap:wrap;}
+
+  #scanBox{width:100%;max-width:360px;border-radius:6px;overflow:hidden;border:1px solid var(--border);}
+
+  .low-stock-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed var(--border);font-size:13px;}
+  .low-stock-item:last-child{border-bottom:none;}
+
+  .toast{
+    position:fixed;bottom:22px;right:22px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:5px;
+    font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.3);z-index:100;display:none;max-width:320px;
+  }
+  .toast.error{background:var(--rust);}
+  .toast.show{display:block;}
+
+  @media (max-width: 860px){
+    .shell{grid-template-columns:1fr;}
+    .sidebar{position:sticky;top:0;flex-direction:row;overflow-x:auto;z-index:20;}
+    .grid-stats{grid-template-columns:repeat(2,1fr);}
+    .panels-2{grid-template-columns:1fr;}
+    .modal-row2{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-tag">◈ Asset Ledger</div>
+    <h1>Sign in</h1>
+    <p class="sub">Equipment inventory &amp; custodian tracking.</p>
+    <div id="loginError"></div>
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" required autocomplete="username"></div>
+      <div class="field"><label>Password</label><input type="password" id="loginPassword" required autocomplete="current-password"></div>
+      <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+    </form>
+    <p class="hint"><a href="#" onclick="openForgotPasswordModal();return false;">Forgot your password?</a></p>
+    <p class="hint">First time here? Set your API URL in <a href="#" onclick="openSettingsFromLogin();return false;">Settings</a>.</p>
+  </div>
+</div>
+
+<!-- ================= FORGOT PASSWORD ================= -->
+<div class="modal-overlay" id="forgotPasswordOverlay">
+  <div class="modal">
+    <h3>Reset your password</h3>
+    <p class="modal-sub">Enter your account email and we'll send you a link to set a new password.</p>
+    <div id="forgotPasswordMsg"></div>
+    <div class="field"><label>Email</label><input type="email" id="forgotPasswordEmail" autocomplete="username"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('forgotPasswordOverlay')">Cancel</button>
+      <button class="btn btn-primary" id="forgotPasswordSubmitBtn" onclick="submitForgotPassword()">Send reset link</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= RESET PASSWORD (via emailed link) ================= -->
+<div id="resetPasswordScreen" style="display:none;">
+  <div class="login-card">
+    <div class="login-tag">◈ Asset Ledger</div>
+    <h1>Set a new password</h1>
+    <p class="sub">Choose a new password for your account.</p>
+    <div id="resetPasswordMsg"></div>
+    <div id="resetPasswordForm">
+      <div class="field"><label>New password</label><input type="password" id="resetNewPassword" autocomplete="new-password"></div>
+      <div class="field"><label>Confirm new password</label><input type="password" id="resetConfirmPassword" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-block" onclick="submitResetPassword()">Set new password</button>
+    </div>
+    <p class="hint"><a href="#" onclick="backToLoginFromReset();return false;">Back to sign in</a></p>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app">
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">◈</div>
+        <div>
+          <div class="brand-name">Asset Ledger</div>
+          <div class="brand-sub">INVENTORY / CUSTODY</div>
+        </div>
+      </div>
+      <nav class="navlist" id="navlist">
+        <button data-view="dashboard"><span class="ico">01</span>Dashboard</button>
+        <button data-view="equipment"><span class="ico">02</span>Equipment</button>
+        <button data-view="custodians"><span class="ico">03</span>Custodians</button>
+        <button data-view="transactions"><span class="ico">04</span>Transactions</button>
+        <button data-view="scan"><span class="ico">05</span>Scan Tag</button>
+        <button data-view="reports"><span class="ico">06</span>Reports</button>
+        <button data-view="users" id="navUsers"><span class="ico">07</span>Users</button>
+        <button data-view="settings"><span class="ico">08</span>Settings</button>
+      </nav>
+      <div class="side-foot">
+        <div class="side-user" id="sideUserName">—</div>
+        <div class="side-role" id="sideUserRole">—</div>
+        <button class="btn btn-ghost btn-sm btn-block" onclick="logout()">Sign out</button>
+      </div>
+    </aside>
+
+    <main>
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view">
+        <div class="topbar">
+          <div><div class="eyebrow">Overview</div><h2>Dashboard</h2></div>
+          <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+        </div>
+        <div class="grid-stats" id="statCards"></div>
+        <div class="panels-2">
+          <div class="card">
+            <div class="panel-title">Items by category <span class="eyebrow">count</span></div>
+            <canvas id="chartCategory" height="180"></canvas>
+          </div>
+          <div class="card">
+            <div class="panel-title">Status breakdown <span class="eyebrow">live</span></div>
+            <canvas id="chartStatus" height="180"></canvas>
+          </div>
+        </div>
+        <div class="panels-2">
+          <div class="card">
+            <div class="panel-title">Recent transactions</div>
+            <table id="recentTxTable"><thead><tr><th>Item</th><th>Type</th><th>By</th><th>Date</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div class="card">
+            <div class="panel-title">Low stock alerts <span class="eyebrow" id="lowStockCountLbl"></span></div>
+            <div id="lowStockList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EQUIPMENT -->
+      <section id="view-equipment" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">Assets</div><h2>Equipment</h2></div>
+          <button class="btn btn-primary" onclick="openEquipmentModal()">+ Add equipment</button>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="eqSearch" placeholder="Search name, serial, ID..." oninput="renderEquipmentList()">
+          <select id="eqFilterCategory" onchange="renderEquipmentList()"><option value="">All categories</option></select>
+          <select id="eqFilterStatus" onchange="renderEquipmentList()">
+            <option value="">All statuses</option>
+            <option>Available</option><option>In Use</option><option>Under Repair</option><option>Retired</option>
+          </select>
+        </div>
+        <div id="equipmentList"></div>
+      </section>
+
+      <!-- EQUIPMENT DETAIL -->
+      <section id="view-eqdetail" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">Asset detail</div><h2 id="eqDetailTitle">—</h2></div>
+          <button class="btn btn-ghost btn-sm" onclick="showView('equipment')">← Back to list</button>
+        </div>
+        <div id="eqDetailBody"></div>
+      </section>
+
+      <!-- CUSTODIANS -->
+      <section id="view-custodians" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">People</div><h2>Custodians</h2></div>
+          <button class="btn btn-primary" onclick="openCustodianModal()">+ Add custodian</button>
+        </div>
+        <table><thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Email</th><th>Assigned items</th><th>Status</th><th></th></tr></thead>
+          <tbody id="custodianTable"></tbody></table>
+      </section>
+
+      <!-- TRANSACTIONS -->
+      <section id="view-transactions" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">History</div><h2>Transactions</h2></div>
+        </div>
+        <table><thead><tr><th>Date</th><th>Item</th><th>Type</th><th>From</th><th>To</th><th>Qty</th><th>By</th><th>Notes</th></tr></thead>
+          <tbody id="txTable"></tbody></table>
+      </section>
+
+      <!-- SCAN -->
+      <section id="view-scan" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">Lookup</div><h2>Scan tag</h2></div>
+        </div>
+        <div class="card" style="max-width:420px;">
+          <p style="margin-top:0;font-size:13.5px;color:var(--steel-soft);">Scan an item's QR tag with your camera, or enter an Equipment ID manually.</p>
+          <div id="scanBox"></div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:10px;" id="scanToggleBtn" onclick="toggleScanner()">Start camera</button>
+          <div class="field" style="margin-top:16px;">
+            <label>Or enter Equipment ID</label>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="manualScanInput" placeholder="EQ-0001">
+              <button class="btn btn-primary btn-sm" onclick="lookupScanned(document.getElementById('manualScanInput').value)">Go</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- REPORTS -->
+      <section id="view-reports" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">Analytics</div><h2>Reports</h2></div>
+          <button class="btn btn-ghost btn-sm" onclick="exportEquipmentCSV()">⬇ Export equipment CSV</button>
+        </div>
+        <div class="grid-stats" id="reportStats" style="grid-template-columns:repeat(3,1fr);"></div>
+        <div class="panels-2">
+          <div class="card"><div class="panel-title">Value by category</div><canvas id="chartValueCat" height="180"></canvas></div>
+          <div class="card"><div class="panel-title">Transactions by type</div><canvas id="chartTxType" height="180"></canvas></div>
+        </div>
+      </section>
+
+      <!-- USERS -->
+      <section id="view-users" class="view" style="display:none;">
+        <div class="topbar">
+          <div><div class="eyebrow">Access control</div><h2>Users</h2></div>
+          <button class="btn btn-primary" onclick="openUserModal()">+ Add user</button>
+        </div>
+        <table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+          <tbody id="userTable"></tbody></table>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="view-settings" class="view" style="display:none;">
+        <div class="topbar"><div><div class="eyebrow">Configuration</div><h2>Settings</h2></div></div>
+        <div class="card" style="max-width:520px;">
+          <div class="field">
+            <label>Apps Script Web App URL</label>
+            <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/XXXX/exec">
+          </div>
+          <p style="font-size:12.5px;color:var(--steel-soft);">Deploy the backend as a Web App from the Apps Script editor, then paste the deployment URL here. Stored only in this browser.</p>
+          <button class="btn btn-primary btn-sm" onclick="saveApiUrl()">Save</button>
+          <span id="apiUrlSaved" style="font-size:12.5px;color:#1E7A45;margin-left:10px;display:none;">Saved ✓</span>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ===== Equipment modal ===== -->
+<div class="modal-overlay" id="equipmentModalOverlay">
+  <div class="modal">
+    <h3 id="eqModalTitle">Add equipment</h3>
+    <p class="modal-sub">Fields marked with an ID tag are used to identify this item across the ledger.</p>
+    <input type="hidden" id="eqModalId">
+    <div class="modal-row2">
+      <div class="field"><label>Name</label><input type="text" id="eqName"></div>
+      <div class="field"><label>Category</label><input type="text" id="eqCategory" list="categoryOptions"></div>
+    </div>
+    <datalist id="categoryOptions"></datalist>
+    <div class="field"><label>Description</label><textarea id="eqDescription" rows="2"></textarea></div>
+    <div class="modal-row2">
+      <div class="field"><label>Serial number</label><input type="text" id="eqSerial"></div>
+      <div class="field"><label>Location</label><input type="text" id="eqLocation"></div>
+    </div>
+    <div class="modal-row2">
+      <div class="field"><label>Quantity</label><input type="number" id="eqQuantity" value="1"></div>
+      <div class="field"><label>Low-stock threshold</label><input type="number" id="eqMinQuantity" value="1"></div>
+    </div>
+    <div class="modal-row2">
+      <div class="field"><label>Unit</label><input type="text" id="eqUnit" value="pcs"></div>
+      <div class="field"><label>Unit value (₱)</label><input type="number" id="eqUnitValue" value="0"></div>
+    </div>
+    <div class="modal-row2">
+      <div class="field"><label>Status</label>
+        <select id="eqStatus"><option>Available</option><option>In Use</option><option>Under Repair</option><option>Retired</option></select>
+      </div>
+      <div class="field"><label>Date acquired</label><input type="date" id="eqDateAcquired"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('equipmentModalOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEquipment()">Save item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Custodian modal ===== -->
+<div class="modal-overlay" id="custodianModalOverlay">
+  <div class="modal">
+    <h3 id="custModalTitle">Add custodian</h3>
+    <input type="hidden" id="custModalId">
+    <div class="modal-row2">
+      <div class="field"><label>Name</label><input type="text" id="custName"></div>
+      <div class="field"><label>Department</label><input type="text" id="custDept"></div>
+    </div>
+    <div class="modal-row2">
+      <div class="field"><label>Email</label><input type="email" id="custEmail"></div>
+      <div class="field"><label>Phone</label><input type="text" id="custPhone"></div>
+    </div>
+    <div class="field"><label>Status</label><select id="custStatus"><option>Active</option><option>Inactive</option></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('custodianModalOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCustodian()">Save custodian</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Transaction modal ===== -->
+<div class="modal-overlay" id="txModalOverlay">
+  <div class="modal">
+    <h3 id="txModalTitle">Record transaction</h3>
+    <input type="hidden" id="txEquipmentId">
+    <div class="field"><label>Transaction type</label>
+      <select id="txType" onchange="renderTxFields()">
+        <option value="Checkout">Checkout — assign to a custodian</option>
+        <option value="Return">Return — back to available</option>
+        <option value="Transfer">Transfer — to another custodian</option>
+        <option value="Maintenance">Maintenance — send for repair</option>
+        <option value="Disposal">Disposal — retire item</option>
+      </select>
+    </div>
+    <div class="field" id="txCustodianField">
+      <label>Custodian</label>
+      <select id="txCustodian"></select>
+    </div>
+    <div class="field"><label>Quantity</label><input type="number" id="txQuantity" value="1"></div>
+    <div class="field"><label>Notes</label><textarea id="txNotes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('txModalOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTransaction()">Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== User modal ===== -->
+<div class="modal-overlay" id="userModalOverlay">
+  <div class="modal">
+    <h3 id="userModalTitle">Add user</h3>
+    <input type="hidden" id="userModalId">
+    <div class="modal-row2">
+      <div class="field"><label>Name</label><input type="text" id="userName"></div>
+      <div class="field"><label>Email</label><input type="email" id="userEmail"></div>
+    </div>
+    <div class="modal-row2">
+      <div class="field"><label>Role</label>
+        <select id="userRole"><option>Admin</option><option>Custodian</option><option>Viewer</option></select>
+      </div>
+      <div class="field"><label>Status</label><select id="userStatus"><option>Active</option><option>Inactive</option></select></div>
+    </div>
+    <div class="field"><label>Password <span style="font-weight:400;color:var(--steel-soft);">(leave blank to keep unchanged)</span></label><input type="password" id="userPassword"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('userModalOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitUser()">Save user</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===========================================================
+   STATE + API
+   =========================================================== */
+const state = {
+  token: localStorage.getItem('al_token') || null,
+  user: JSON.parse(localStorage.getItem('al_user') || 'null'),
+  apiUrl: localStorage.getItem('al_api_url') || '',
+  resetToken: null,
+  equipment: [], custodians: [], categories: [], transactions: [], users: []
+};
+
+async function api(action, payload) {
+  if (!state.apiUrl) throw new Error('Set your Apps Script Web App URL in Settings first.');
+  const res = await fetch(state.apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, token: state.token, payload: payload || {} })
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Request failed');
+  return json.data;
+}
+
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+/* ===========================================================
+   INIT / AUTH
+   =========================================================== */
+document.getElementById('apiUrlInput').value = state.apiUrl;
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginError');
+  errBox.innerHTML = '';
+  try {
+    const data = await api('login', { email, password });
+    state.token = data.token;
+    state.user = { name: data.name, email: data.email, role: data.role, userId: data.userId };
+    localStorage.setItem('al_token', state.token);
+    localStorage.setItem('al_user', JSON.stringify(state.user));
+    boot();
+  } catch (err) {
+    errBox.innerHTML = '<div class="error-box">' + escapeHtml(err.message) + '</div>';
+  }
+});
+
+/* ---------- Forgot password ---------- */
+function openForgotPasswordModal() {
+  document.getElementById('forgotPasswordMsg').innerHTML = '';
+  document.getElementById('forgotPasswordEmail').value = document.getElementById('loginEmail').value.trim();
+  document.getElementById('forgotPasswordSubmitBtn').disabled = false;
+  document.getElementById('forgotPasswordSubmitBtn').textContent = 'Send reset link';
+  openModal('forgotPasswordOverlay');
+}
+
+async function submitForgotPassword() {
+  const email = document.getElementById('forgotPasswordEmail').value.trim();
+  const msgBox = document.getElementById('forgotPasswordMsg');
+  if (!email) { msgBox.innerHTML = '<div class="error-box">Enter your email first.</div>'; return; }
+  const btn = document.getElementById('forgotPasswordSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await api('forgotPassword', { email });
+    msgBox.innerHTML = '<div class="hint" style="text-align:left;margin-top:0;">If an account exists for that email, we\'ve sent a reset link. Check your inbox (and spam folder).</div>';
+  } catch (err) {
+    msgBox.innerHTML = '<div class="error-box">' + escapeHtml(err.message) + '</div>';
+    btn.disabled = false;
+  }
+  btn.textContent = 'Send reset link';
+}
+
+/* ---------- Reset password (from emailed link) ---------- */
+function checkForResetToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('resetToken');
+  if (!token) return;
+  state.resetToken = token;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('resetPasswordScreen').style.display = 'flex';
+}
+
+async function submitResetPassword() {
+  const newPassword = document.getElementById('resetNewPassword').value;
+  const confirmPassword = document.getElementById('resetConfirmPassword').value;
+  const msgBox = document.getElementById('resetPasswordMsg');
+  msgBox.innerHTML = '';
+  if (!newPassword || newPassword.length < 8) { msgBox.innerHTML = '<div class="error-box">Password must be at least 8 characters.</div>'; return; }
+  if (newPassword !== confirmPassword) { msgBox.innerHTML = '<div class="error-box">Passwords do not match.</div>'; return; }
+  try {
+    await api('resetPassword', { token: state.resetToken, newPassword });
+    document.getElementById('resetPasswordForm').style.display = 'none';
+    msgBox.innerHTML = '<div class="hint" style="text-align:left;margin-top:0;">Your password has been reset. You can sign in now.</div>';
+  } catch (err) {
+    msgBox.innerHTML = '<div class="error-box">' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+function backToLoginFromReset() {
+  window.history.replaceState({}, document.title, window.location.pathname);
+  document.getElementById('resetPasswordScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function openSettingsFromLogin() {
+  const url = prompt('Paste your Apps Script Web App URL:', state.apiUrl || '');
+  if (url) { state.apiUrl = url.trim(); localStorage.setItem('al_api_url', state.apiUrl); toast('API URL saved. You can sign in now.'); }
+}
+
+function saveApiUrl() {
+  state.apiUrl = document.getElementById('apiUrlInput').value.trim();
+  localStorage.setItem('al_api_url', state.apiUrl);
+  const s = document.getElementById('apiUrlSaved');
+  s.style.display = 'inline'; setTimeout(() => s.style.display = 'none', 2000);
+}
+
+function logout() {
+  api('logout', {}).catch(()=>{});
+  state.token = null; state.user = null;
+  localStorage.removeItem('al_token'); localStorage.removeItem('al_user');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+async function boot() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('sideUserName').textContent = state.user.name || state.user.email;
+  document.getElementById('sideUserRole').textContent = state.user.role;
+  if (state.user.role !== 'Admin') document.getElementById('navUsers').style.display = 'none';
+  await refreshAll();
+  showView('dashboard');
+}
+
+checkForResetToken();
+if (!state.resetToken && state.token && state.user && state.apiUrl) { boot().catch(err => toast(err.message, true)); }
+
+/* ===========================================================
+   NAV
+   =========================================================== */
+document.getElementById('navlist').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (btn) showView(btn.dataset.view);
+});
+
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+  document.getElementById('view-' + name).style.display = 'block';
+  document.querySelectorAll('#navlist button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'equipment') renderEquipmentList();
+  if (name === 'custodians') renderCustodians();
+  if (name === 'transactions') renderTransactions();
+  if (name === 'reports') loadReports();
+  if (name === 'users') renderUsers();
+}
+
+async function refreshAll() {
+  const [equipment, custodians, categories, transactions] = await Promise.all([
+    api('listEquipment'), api('listCustodians'), api('listCategories'), api('listTransactions', {})
+  ]);
+  state.equipment = equipment; state.custodians = custodians; state.categories = categories; state.transactions = transactions;
+  const catSelect = document.getElementById('eqFilterCategory');
+  catSelect.innerHTML = '<option value="">All categories</option>' + categories.map(c => `<option>${escapeHtml(c.CategoryName)}</option>`).join('');
+  document.getElementById('categoryOptions').innerHTML = categories.map(c => `<option value="${escapeHtml(c.CategoryName)}">`).join('');
+  if (state.user.role === 'Admin') { try { state.users = await api('listUsers'); } catch(e){} }
+}
+
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtMoney(n) { return '₱' + (Number(n)||0).toLocaleString(undefined,{maximumFractionDigits:2}); }
+function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return isNaN(dt) ? String(d) : dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+function statusBadgeClass(s) { return { 'Available':'badge-available','In Use':'badge-inuse','Under Repair':'badge-repair','Retired':'badge-retired' }[s] || 'badge-available'; }
+function qrUrl(id, size) { return `https://api.qrserver.com/v1/create-qr-code/?size=${size||150}x${size||150}&data=${encodeURIComponent(id)}`; }
+function custodianName(id) { const c = state.custodians.find(c => c.CustodianID === id); return c ? c.Name : (id || '—'); }
+
+/* ===========================================================
+   DASHBOARD
+   =========================================================== */
+let chartCategory, chartStatus, chartValueCat, chartTxType;
+
+async function loadDashboard() {
+  try {
+    const d = await api('getDashboard');
+    document.getElementById('statCards').innerHTML = [
+      ['Total items', d.totalItems, false],
+      ['Total units', d.totalUnits, false],
+      ['Custodians', d.totalCustodians, false],
+      ['Ledger value', fmtMoney(d.totalValue), false],
+      ['Low stock', d.lowStockCount, d.lowStockCount > 0],
+    ].map(([label, val, alert]) => `
+      <div class="stat-card ${alert?'alert':''}">
+        <div class="stat-label">${label}</div>
+        <div class="stat-value">${val}</div>
+      </div>`).join('');
+
+    const catLabels = Object.keys(d.byCategory);
+    const catData = Object.values(d.byCategory);
+    chartCategory && chartCategory.destroy();
+    chartCategory = new Chart(document.getElementById('chartCategory'), {
+      type: 'bar',
+      data: { labels: catLabels, datasets: [{ data: catData, backgroundColor: '#1F6F78', borderRadius: 3 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+
+    const statusLabels = Object.keys(d.byStatus);
+    const statusData = Object.values(d.byStatus);
+    const statusColors = statusLabels.map(s => ({'Available':'#1E7A45','In Use':'#2854A6','Under Repair':'#96700F','Retired':'#8A3B3B'}[s] || '#3A4756'));
+    chartStatus && chartStatus.destroy();
+    chartStatus = new Chart(document.getElementById('chartStatus'), {
+      type: 'doughnut',
+      data: { labels: statusLabels, datasets: [{ data: statusData, backgroundColor: statusColors }] },
+      options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+    });
+
+    document.querySelector('#recentTxTable tbody').innerHTML = d.recentTransactions.map(t => `
+      <tr><td><span class="id-tag">${escapeHtml(t.EquipmentID)}</span></td><td>${escapeHtml(t.Type)}</td><td>${escapeHtml(t.PerformedBy)}</td><td>${fmtDate(t.Date)}</td></tr>
+    `).join('') || '<tr><td colspan="4" style="color:var(--steel-soft);">No transactions yet.</td></tr>';
+
+    document.getElementById('lowStockCountLbl').textContent = d.lowStockCount + ' item(s)';
+    document.getElementById('lowStockList').innerHTML = d.lowStockItems.length
+      ? d.lowStockItems.map(i => `<div class="low-stock-item"><span>${escapeHtml(i.Name)} <span class="id-tag">${escapeHtml(i.EquipmentID)}</span></span><b style="color:var(--rust);">${i.Quantity}/${i.MinQuantity}</b></div>`).join('')
+      : '<div class="empty-state" style="padding:16px 0;">All stock levels healthy.</div>';
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ===========================================================
+   EQUIPMENT
+   =========================================================== */
+function renderEquipmentList() {
+  const q = document.getElementById('eqSearch').value.toLowerCase();
+  const cat = document.getElementById('eqFilterCategory').value;
+  const status = document.getElementById('eqFilterStatus').value;
+  let list = state.equipment.filter(e => {
+    const matchesQ = !q || [e.Name, e.SerialNumber, e.EquipmentID].some(v => String(v||'').toLowerCase().includes(q));
+    const matchesCat = !cat || e.Category === cat;
+    const matchesStatus = !status || e.Status === status;
+    return matchesQ && matchesCat && matchesStatus;
+  });
+  const container = document.getElementById('equipmentList');
+  if (!list.length) { container.innerHTML = '<div class="empty-state"><div class="glyph">∅</div>No equipment matches these filters.</div>'; return; }
+  container.innerHTML = list.map(e => `
+    <div class="tag-row" onclick="openEquipmentDetail('${e.EquipmentID}')">
+      <img class="tag-qr" src="${qrUrl(e.EquipmentID, 80)}" alt="QR">
+      <div class="tag-main">
+        <div class="tname">${escapeHtml(e.Name)} <span class="id-tag">${escapeHtml(e.EquipmentID)}</span></div>
+        <div class="tmeta">${escapeHtml(e.Category||'—')} · ${escapeHtml(e.Location||'—')} · ${e.CustodianID ? 'Custodian: '+escapeHtml(custodianName(e.CustodianID)) : 'Unassigned'}</div>
+      </div>
+      <span class="badge ${statusBadgeClass(e.Status)}">${escapeHtml(e.Status)}</span>
+      <div class="tag-qty">Qty<br><b>${e.Quantity}</b></div>
+    </div>`).join('');
+}
+
+function openEquipmentModal(eq) {
+  document.getElementById('eqModalTitle').textContent = eq ? 'Edit equipment' : 'Add equipment';
+  document.getElementById('eqModalId').value = eq ? eq.EquipmentID : '';
+  document.getElementById('eqName').value = eq ? eq.Name : '';
+  document.getElementById('eqCategory').value = eq ? eq.Category : '';
+  document.getElementById('eqDescription').value = eq ? eq.Description : '';
+  document.getElementById('eqSerial').value = eq ? eq.SerialNumber : '';
+  document.getElementById('eqLocation').value = eq ? eq.Location : '';
+  document.getElementById('eqQuantity').value = eq ? eq.Quantity : 1;
+  document.getElementById('eqMinQuantity').value = eq ? eq.MinQuantity : 1;
+  document.getElementById('eqUnit').value = eq ? eq.Unit : 'pcs';
+  document.getElementById('eqUnitValue').value = eq ? eq.UnitValue : 0;
+  document.getElementById('eqStatus').value = eq ? eq.Status : 'Available';
+  document.getElementById('eqDateAcquired').value = eq && eq.DateAcquired ? new Date(eq.DateAcquired).toISOString().slice(0,10) : '';
+  openModal('equipmentModalOverlay');
+}
+
+async function submitEquipment() {
+  const id = document.getElementById('eqModalId').value;
+  const payload = {
+    equipmentId: id, name: document.getElementById('eqName').value, category: document.getElementById('eqCategory').value,
+    description: document.getElementById('eqDescription').value, serialNumber: document.getElementById('eqSerial').value,
+    location: document.getElementById('eqLocation').value, quantity: document.getElementById('eqQuantity').value,
+    minQuantity: document.getElementById('eqMinQuantity').value, unit: document.getElementById('eqUnit').value,
+    unitValue: document.getElementById('eqUnitValue').value, status: document.getElementById('eqStatus').value,
+    dateAcquired: document.getElementById('eqDateAcquired').value
+  };
+  if (!payload.name) { toast('Name is required', true); return; }
+  try {
+    if (id) await api('updateEquipment', payload); else await api('addEquipment', payload);
+    closeModal('equipmentModalOverlay');
+    await refreshAll(); renderEquipmentList();
+    toast('Equipment saved.');
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteEquipmentItem(id) {
+  if (!confirm('Delete this equipment item? This cannot be undone.')) return;
+  try { await api('deleteEquipment', { equipmentId: id }); await refreshAll(); showView('equipment'); toast('Deleted.'); }
+  catch (err) { toast(err.message, true); }
+}
+
+async function openEquipmentDetail(id) {
+  const e = state.equipment.find(x => x.EquipmentID === id) || await api('getEquipment', { equipmentId: id });
+  document.getElementById('eqDetailTitle').textContent = e.Name + '  ';
+  const canEdit = state.user.role === 'Admin' || state.user.role === 'Custodian';
+  const canDelete = state.user.role === 'Admin';
+  const history = state.transactions.filter(t => t.EquipmentID === id);
+  document.getElementById('eqDetailBody').innerHTML = `
+    <div class="detail-header">
+      <div style="display:flex;gap:16px;">
+        <img src="${qrUrl(id, 110)}" style="border:1px solid var(--border);border-radius:5px;">
+        <div>
+          <div class="chip-list" style="margin-bottom:8px;">
+            <span class="id-tag">${escapeHtml(id)}</span>
+            <span class="badge ${statusBadgeClass(e.Status)}">${escapeHtml(e.Status)}</span>
+          </div>
+          <div style="font-size:13.5px;color:var(--steel-soft);max-width:420px;">${escapeHtml(e.Description||'No description provided.')}</div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick='openEquipmentModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Edit</button>` : ''}
+        ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteEquipmentItem('${id}')">Delete</button>` : ''}
+      </div>
+    </div>
+    <div class="panels-2">
+      <div class="card">
+        <div class="panel-title">Details</div>
+        <table>
+          <tr><th>Category</th><td>${escapeHtml(e.Category||'—')}</td></tr>
+          <tr><th>Serial No.</th><td>${escapeHtml(e.SerialNumber||'—')}</td></tr>
+          <tr><th>Location</th><td>${escapeHtml(e.Location||'—')}</td></tr>
+          <tr><th>Quantity</th><td>${e.Quantity} ${escapeHtml(e.Unit||'')} <span style="color:var(--steel-soft);">(min ${e.MinQuantity})</span></td></tr>
+          <tr><th>Unit value</th><td>${fmtMoney(e.UnitValue)}</td></tr>
+          <tr><th>Custodian</th><td>${e.CustodianID ? escapeHtml(custodianName(e.CustodianID)) : 'Unassigned'}</td></tr>
+          <tr><th>Acquired</th><td>${e.DateAcquired ? fmtDate(e.DateAcquired) : '—'}</td></tr>
+          <tr><th>Last updated</th><td>${fmtDate(e.DateUpdated)}</td></tr>
+        </table>
+        ${canEdit ? `<div style="margin-top:14px;" class="chip-list">
+          <button class="btn btn-primary btn-sm" onclick="openTxModal('${id}','Checkout')">Checkout</button>
+          <button class="btn btn-ghost btn-sm" onclick="openTxModal('${id}','Return')">Return</button>
+          <button class="btn btn-ghost btn-sm" onclick="openTxModal('${id}','Transfer')">Transfer</button>
+          <button class="btn btn-amber btn-sm" onclick="openTxModal('${id}','Maintenance')">Send for repair</button>
+          <button class="btn btn-danger btn-sm" onclick="openTxModal('${id}','Disposal')">Retire</button>
+        </div>` : ''}
+      </div>
+      <div class="card">
+        <div class="panel-title">Transaction history</div>
+        ${history.length ? `<table><thead><tr><th>Date</th><th>Type</th><th>To</th><th>By</th></tr></thead><tbody>
+          ${history.map(t => `<tr><td>${fmtDate(t.Date)}</td><td>${escapeHtml(t.Type)}</td><td>${t.ToCustodianID?escapeHtml(custodianName(t.ToCustodianID)):'—'}</td><td>${escapeHtml(t.PerformedBy)}</td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty-state" style="padding:20px 0;">No transactions recorded for this item yet.</div>'}
+      </div>
+    </div>`;
+  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+  document.getElementById('view-eqdetail').style.display = 'block';
+}
+
+/* ===========================================================
+   CUSTODIANS
+   =========================================================== */
+function renderCustodians() {
+  const tbody = document.getElementById('custodianTable');
+  const canManage = state.user.role === 'Admin' || state.user.role === 'Custodian';
+  const canDelete = state.user.role === 'Admin';
+  tbody.innerHTML = state.custodians.map(c => {
+    const count = state.equipment.filter(e => e.CustodianID === c.CustodianID).length;
+    return `<tr>
+      <td><span class="id-tag">${escapeHtml(c.CustodianID)}</span></td>
+      <td>${escapeHtml(c.Name)}</td><td>${escapeHtml(c.Department)}</td><td>${escapeHtml(c.Email)}</td>
+      <td>${count}</td>
+      <td><span class="badge ${c.Status==='Active'?'badge-available':'badge-retired'}">${escapeHtml(c.Status)}</span></td>
+      <td>${canManage ? `<button class="btn btn-ghost btn-sm" onclick='openCustodianModal(${JSON.stringify(c).replace(/'/g,"&#39;")})'>Edit</button>` : ''}
+          ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteCustodianItem('${c.CustodianID}')">Delete</button>` : ''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--steel-soft);">No custodians yet.</td></tr>';
+}
+
+function openCustodianModal(c) {
+  document.getElementById('custModalTitle').textContent = c ? 'Edit custodian' : 'Add custodian';
+  document.getElementById('custModalId').value = c ? c.CustodianID : '';
+  document.getElementById('custName').value = c ? c.Name : '';
+  document.getElementById('custDept').value = c ? c.Department : '';
+  document.getElementById('custEmail').value = c ? c.Email : '';
+  document.getElementById('custPhone').value = c ? c.Phone : '';
+  document.getElementById('custStatus').value = c ? c.Status : 'Active';
+  openModal('custodianModalOverlay');
+}
+
+async function submitCustodian() {
+  const id = document.getElementById('custModalId').value;
+  const payload = {
+    custodianId: id, name: document.getElementById('custName').value, department: document.getElementById('custDept').value,
+    email: document.getElementById('custEmail').value, phone: document.getElementById('custPhone').value, status: document.getElementById('custStatus').value
+  };
+  if (!payload.name) { toast('Name is required', true); return; }
+  try {
+    if (id) await api('updateCustodian', payload); else await api('addCustodian', payload);
+    closeModal('custodianModalOverlay'); await refreshAll(); renderCustodians(); toast('Custodian saved.');
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteCustodianItem(id) {
+  if (!confirm('Delete this custodian?')) return;
+  try { await api('deleteCustodian', { custodianId: id }); await refreshAll(); renderCustodians(); toast('Deleted.'); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ===========================================================
+   TRANSACTIONS
+   =========================================================== */
+function renderTransactions() {
+  const tbody = document.getElementById('txTable');
+  tbody.innerHTML = state.transactions.map(t => `
+    <tr>
+      <td>${fmtDate(t.Date)}</td><td><span class="id-tag">${escapeHtml(t.EquipmentID)}</span></td><td>${escapeHtml(t.Type)}</td>
+      <td>${t.FromCustodianID?escapeHtml(custodianName(t.FromCustodianID)):'—'}</td>
+      <td>${t.ToCustodianID?escapeHtml(custodianName(t.ToCustodianID)):'—'}</td>
+      <td>${t.Quantity}</td><td>${escapeHtml(t.PerformedBy)}</td><td>${escapeHtml(t.Notes||'—')}</td>
+    </tr>`).join('') || '<tr><td colspan="8" style="color:var(--steel-soft);">No transactions recorded yet.</td></tr>';
+}
+
+function openTxModal(equipmentId, type) {
+  document.getElementById('txEquipmentId').value = equipmentId;
+  document.getElementById('txType').value = type || 'Checkout';
+  document.getElementById('txQuantity').value = 1;
+  document.getElementById('txNotes').value = '';
+  document.getElementById('txCustodian').innerHTML = state.custodians.map(c => `<option value="${c.CustodianID}">${escapeHtml(c.Name)}</option>`).join('');
+  renderTxFields();
+  openModal('txModalOverlay');
+}
+
+function renderTxFields() {
+  const type = document.getElementById('txType').value;
+  document.getElementById('txCustodianField').style.display = (type === 'Checkout' || type === 'Transfer') ? 'block' : 'none';
+}
+
+async function submitTransaction() {
+  const equipmentId = document.getElementById('txEquipmentId').value;
+  const type = document.getElementById('txType').value;
+  const custodianId = document.getElementById('txCustodian').value;
+  const payload = {
+    equipmentId, type,
+    toCustodianId: (type === 'Checkout' || type === 'Transfer') ? custodianId : '',
+    fromCustodianId: '', quantity: document.getElementById('txQuantity').value, notes: document.getElementById('txNotes').value
+  };
+  try {
+    await api('recordTransaction', payload);
+    closeModal('txModalOverlay');
+    await refreshAll();
+    openEquipmentDetail(equipmentId);
+    toast('Transaction recorded.');
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ===========================================================
+   SCAN
+   =========================================================== */
+let html5QrCode, scannerRunning = false;
+
+function toggleScanner() {
+  if (scannerRunning) { stopScanner(); return; }
+  html5QrCode = html5QrCode || new Html5Qrcode('scanBox');
+  html5QrCode.start({ facingMode: 'environment' }, { fps: 10, qrbox: 220 },
+    (decodedText) => { stopScanner(); lookupScanned(decodedText); },
+    () => {}
+  ).then(() => { scannerRunning = true; document.getElementById('scanToggleBtn').textContent = 'Stop camera'; })
+   .catch(err => toast('Camera error: ' + err, true));
+}
+
+function stopScanner() {
+  if (html5QrCode && scannerRunning) { html5QrCode.stop().then(() => html5QrCode.clear()); }
+  scannerRunning = false;
+  document.getElementById('scanToggleBtn').textContent = 'Start camera';
+}
+
+async function lookupScanned(id) {
+  if (!id) return;
+  try {
+    await refreshAll();
+    const found = state.equipment.find(e => e.EquipmentID === id.trim());
+    if (!found) { toast('No equipment found for "' + id + '"', true); return; }
+    showViewRaw('eqdetail');
+    openEquipmentDetail(found.EquipmentID);
+  } catch (err) { toast(err.message, true); }
+}
+function showViewRaw(name){ document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + name).style.display = 'block'; }
+
+/* ===========================================================
+   REPORTS
+   =========================================================== */
+async function loadReports() {
+  try {
+    const r = await api('getReport', {});
+    document.getElementById('reportStats').innerHTML = [
+      ['Total ledger value', fmtMoney(r.totalEquipmentValue)],
+      ['Categories tracked', Object.keys(r.itemCountByCategory).length],
+      ['Transactions logged', Object.values(r.transactionsByType).reduce((a,b)=>a+b,0)],
+    ].map(([label,val]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${val}</div></div>`).join('');
+
+    chartValueCat && chartValueCat.destroy();
+    chartValueCat = new Chart(document.getElementById('chartValueCat'), {
+      type: 'bar',
+      data: { labels: Object.keys(r.valueByCategory), datasets: [{ data: Object.values(r.valueByCategory), backgroundColor: '#E4A93B', borderRadius: 3 }] },
+      options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+    });
+
+    chartTxType && chartTxType.destroy();
+    chartTxType = new Chart(document.getElementById('chartTxType'), {
+      type: 'pie',
+      data: { labels: Object.keys(r.transactionsByType), datasets: [{ data: Object.values(r.transactionsByType), backgroundColor: ['#1F6F78','#2C8C96','#E4A93B','#96700F','#C1502E','#3A4756'] } ] },
+      options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+    });
+  } catch (err) { toast(err.message, true); }
+}
+
+function exportEquipmentCSV() {
+  const headers = ['EquipmentID','Name','Category','SerialNumber','Quantity','MinQuantity','Unit','Location','Status','CustodianID','UnitValue'];
+  const rows = state.equipment.map(e => headers.map(h => `"${String(e[h]??'').replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'equipment_export.csv'; a.click();
+}
+
+/* ===========================================================
+   USERS (admin)
+   =========================================================== */
+function renderUsers() {
+  const tbody = document.getElementById('userTable');
+  tbody.innerHTML = state.users.map(u => `
+    <tr>
+      <td><span class="id-tag">${escapeHtml(u.UserID)}</span></td><td>${escapeHtml(u.Name)}</td><td>${escapeHtml(u.Email)}</td>
+      <td><span class="badge badge-role">${escapeHtml(u.Role)}</span></td>
+      <td><span class="badge ${u.Status==='Active'?'badge-available':'badge-retired'}">${escapeHtml(u.Status)}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(u).replace(/'/g,"&#39;")})'>Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUserItem('${u.UserID}')">Delete</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="color:var(--steel-soft);">No users yet.</td></tr>';
+}
+
+function openUserModal(u) {
+  document.getElementById('userModalTitle').textContent = u ? 'Edit user' : 'Add user';
+  document.getElementById('userModalId').value = u ? u.UserID : '';
+  document.getElementById('userName').value = u ? u.Name : '';
+  document.getElementById('userEmail').value = u ? u.Email : '';
+  document.getElementById('userEmail').disabled = !!u;
+  document.getElementById('userRole').value = u ? u.Role : 'Viewer';
+  document.getElementById('userStatus').value = u ? u.Status : 'Active';
+  document.getElementById('userPassword').value = '';
+  openModal('userModalOverlay');
+}
+
+async function submitUser() {
+  const id = document.getElementById('userModalId').value;
+  const payload = {
+    userId: id, name: document.getElementById('userName').value, email: document.getElementById('userEmail').value,
+    role: document.getElementById('userRole').value, status: document.getElementById('userStatus').value,
+    password: document.getElementById('userPassword').value
+  };
+  if (!payload.name || (!id && !payload.email)) { toast('Name and email are required', true); return; }
+  try {
+    if (id) await api('updateUser', payload); else await api('addUser', payload);
+    closeModal('userModalOverlay'); state.users = await api('listUsers'); renderUsers(); toast('User saved.');
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteUserItem(id) {
+  if (!confirm('Delete this user account?')) return;
+  try { await api('deleteUser', { userId: id }); state.users = await api('listUsers'); renderUsers(); toast('Deleted.'); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ===========================================================
+   MODAL HELPERS
+   =========================================================== */
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
+</script>
+</body>
+</html>
