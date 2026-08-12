@@ -107,7 +107,7 @@
   }
 
   .card{background:var(--white);border:1px solid var(--border);border-radius:5px;padding:18px 20px;}
-  .grid-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px;}
+  .grid-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:20px;}
   .stat-card{
     background:var(--white);border:1px solid var(--border);border-radius:5px;padding:16px 16px 14px;
     position:relative;overflow:hidden;
@@ -368,10 +368,17 @@
           <div><div class="eyebrow">Analytics</div><h2>Reports</h2></div>
           <button class="btn btn-ghost btn-sm" onclick="exportEquipmentCSV()">⬇ Export equipment CSV</button>
         </div>
-        <div class="grid-stats" id="reportStats" style="grid-template-columns:repeat(3,1fr);"></div>
+        <div class="grid-stats" id="reportStats" style="grid-template-columns:repeat(4,1fr);"></div>
         <div class="panels-2">
-          <div class="card"><div class="panel-title">Value by category</div><canvas id="chartValueCat" height="180"></canvas></div>
+          <div class="card"><div class="panel-title">Value by category <span class="eyebrow">at cost vs. book</span></div><canvas id="chartValueCat" height="180"></canvas></div>
           <div class="card"><div class="panel-title">Transactions by type</div><canvas id="chartTxType" height="180"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="panel-title">Depreciation schedule <span class="eyebrow">items with a useful life set</span></div>
+          <table>
+            <thead><tr><th>Item</th><th>Cost</th><th>Salvage</th><th>Life</th><th>Annual dep.</th><th>Accumulated</th><th>Book value</th><th>Status</th></tr></thead>
+            <tbody id="depreciationTable"></tbody>
+          </table>
         </div>
       </section>
 
@@ -431,6 +438,10 @@
         <select id="eqStatus"><option>Available</option><option>In Use</option><option>Under Repair</option><option>Retired</option></select>
       </div>
       <div class="field"><label>Date acquired</label><input type="date" id="eqDateAcquired"></div>
+    </div>
+    <div class="modal-row2">
+      <div class="field"><label>Useful life (years) <span style="font-weight:400;color:var(--steel-soft);">0 = no depreciation</span></label><input type="number" id="eqUsefulLife" value="0" min="0" step="1"></div>
+      <div class="field"><label>Salvage value (₱)</label><input type="number" id="eqSalvageValue" value="0" min="0"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('equipmentModalOverlay')">Cancel</button>
@@ -520,7 +531,6 @@ const state = {
   token: localStorage.getItem('al_token') || null,
   user: JSON.parse(localStorage.getItem('al_user') || 'null'),
   apiUrl: localStorage.getItem('al_api_url') || '',
-  resetToken: null,
   equipment: [], custodians: [], categories: [], transactions: [], users: []
 };
 
@@ -567,39 +577,53 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   }
 });
 
+function openSettingsFromLogin() {
+  const url = prompt('Paste your Apps Script Web App URL:', state.apiUrl || '');
+  if (url) { state.apiUrl = url.trim(); localStorage.setItem('al_api_url', state.apiUrl); toast('API URL saved. You can sign in now.'); }
+}
+
 /* ---------- Forgot password ---------- */
 function openForgotPasswordModal() {
   document.getElementById('forgotPasswordMsg').innerHTML = '';
   document.getElementById('forgotPasswordEmail').value = document.getElementById('loginEmail').value.trim();
-  document.getElementById('forgotPasswordSubmitBtn').disabled = false;
-  document.getElementById('forgotPasswordSubmitBtn').textContent = 'Send reset link';
+  const btn = document.getElementById('forgotPasswordSubmitBtn');
+  btn.disabled = false; btn.textContent = 'Send reset link';
+  if (!state.apiUrl) { toast('Set your Apps Script Web App URL in Settings first.', true); return; }
   openModal('forgotPasswordOverlay');
 }
 
 async function submitForgotPassword() {
   const email = document.getElementById('forgotPasswordEmail').value.trim();
   const msgBox = document.getElementById('forgotPasswordMsg');
+  msgBox.innerHTML = '';
   if (!email) { msgBox.innerHTML = '<div class="error-box">Enter your email first.</div>'; return; }
   const btn = document.getElementById('forgotPasswordSubmitBtn');
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
-    await api('forgotPassword', { email });
-    msgBox.innerHTML = '<div class="hint" style="text-align:left;margin-top:0;">If an account exists for that email, we\'ve sent a reset link. Check your inbox (and spam folder).</div>';
+    const appUrl = window.location.origin + window.location.pathname;
+    await api('forgotPassword', { email, appUrl });
+    msgBox.innerHTML = '<div class="hint" style="text-align:left;margin-top:0;">If an account exists for that email, a reset link is on its way — check your inbox (and spam folder). The link expires in 1 hour.</div>';
+    btn.textContent = 'Sent ✓';
   } catch (err) {
     msgBox.innerHTML = '<div class="error-box">' + escapeHtml(err.message) + '</div>';
-    btn.disabled = false;
+    btn.disabled = false; btn.textContent = 'Send reset link';
   }
-  btn.textContent = 'Send reset link';
 }
 
-/* ---------- Reset password (from emailed link) ---------- */
+/* ---------- Reset password (arriving from the emailed link) ---------- */
 function checkForResetToken() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get('resetToken');
-  if (!token) return;
+  if (!token) return false;
   state.resetToken = token;
+  const apiUrlFromLink = params.get('apiUrl');
+  if (apiUrlFromLink && !state.apiUrl) {
+    state.apiUrl = decodeURIComponent(apiUrlFromLink);
+    localStorage.setItem('al_api_url', state.apiUrl);
+  }
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('resetPasswordScreen').style.display = 'flex';
+  return true;
 }
 
 async function submitResetPassword() {
@@ -612,7 +636,7 @@ async function submitResetPassword() {
   try {
     await api('resetPassword', { token: state.resetToken, newPassword });
     document.getElementById('resetPasswordForm').style.display = 'none';
-    msgBox.innerHTML = '<div class="hint" style="text-align:left;margin-top:0;">Your password has been reset. You can sign in now.</div>';
+    msgBox.innerHTML = '<div class="hint" style="text-align:left;margin-top:0;">Your password has been reset. <a href="#" onclick="backToLoginFromReset();return false;">Sign in</a> with your new password.</div>';
   } catch (err) {
     msgBox.innerHTML = '<div class="error-box">' + escapeHtml(err.message) + '</div>';
   }
@@ -620,13 +644,13 @@ async function submitResetPassword() {
 
 function backToLoginFromReset() {
   window.history.replaceState({}, document.title, window.location.pathname);
+  state.resetToken = null;
   document.getElementById('resetPasswordScreen').style.display = 'none';
+  document.getElementById('resetPasswordForm').style.display = 'block';
+  document.getElementById('resetPasswordMsg').innerHTML = '';
+  document.getElementById('resetNewPassword').value = '';
+  document.getElementById('resetConfirmPassword').value = '';
   document.getElementById('loginScreen').style.display = 'flex';
-}
-
-function openSettingsFromLogin() {
-  const url = prompt('Paste your Apps Script Web App URL:', state.apiUrl || '');
-  if (url) { state.apiUrl = url.trim(); localStorage.setItem('al_api_url', state.apiUrl); toast('API URL saved. You can sign in now.'); }
 }
 
 function saveApiUrl() {
@@ -654,8 +678,8 @@ async function boot() {
   showView('dashboard');
 }
 
-checkForResetToken();
-if (!state.resetToken && state.token && state.user && state.apiUrl) { boot().catch(err => toast(err.message, true)); }
+const cameForReset = checkForResetToken();
+if (!cameForReset && state.token && state.user && state.apiUrl) { boot().catch(err => toast(err.message, true)); }
 
 /* ===========================================================
    NAV
@@ -707,7 +731,8 @@ async function loadDashboard() {
       ['Total items', d.totalItems, false],
       ['Total units', d.totalUnits, false],
       ['Custodians', d.totalCustodians, false],
-      ['Ledger value', fmtMoney(d.totalValue), false],
+      ['Value at cost', fmtMoney(d.totalValue), false],
+      ['Book value', fmtMoney(d.totalBookValue), false],
       ['Low stock', d.lowStockCount, d.lowStockCount > 0],
     ].map(([label, val, alert]) => `
       <div class="stat-card ${alert?'alert':''}">
@@ -765,7 +790,7 @@ function renderEquipmentList() {
       <img class="tag-qr" src="${qrUrl(e.EquipmentID, 80)}" alt="QR">
       <div class="tag-main">
         <div class="tname">${escapeHtml(e.Name)} <span class="id-tag">${escapeHtml(e.EquipmentID)}</span></div>
-        <div class="tmeta">${escapeHtml(e.Category||'—')} · ${escapeHtml(e.Location||'—')} · ${e.CustodianID ? 'Custodian: '+escapeHtml(custodianName(e.CustodianID)) : 'Unassigned'}</div>
+        <div class="tmeta">${escapeHtml(e.Category||'—')} · ${escapeHtml(e.Location||'—')} · ${e.CustodianID ? 'Custodian: '+escapeHtml(custodianName(e.CustodianID)) : 'Unassigned'}${Number(e.UsefulLifeYears) > 0 ? ' · Book value: '+fmtMoney(e.CurrentTotalValue)+(e.FullyDepreciated?' (fully depreciated)':'') : ''}</div>
       </div>
       <span class="badge ${statusBadgeClass(e.Status)}">${escapeHtml(e.Status)}</span>
       <div class="tag-qty">Qty<br><b>${e.Quantity}</b></div>
@@ -786,6 +811,8 @@ function openEquipmentModal(eq) {
   document.getElementById('eqUnitValue').value = eq ? eq.UnitValue : 0;
   document.getElementById('eqStatus').value = eq ? eq.Status : 'Available';
   document.getElementById('eqDateAcquired').value = eq && eq.DateAcquired ? new Date(eq.DateAcquired).toISOString().slice(0,10) : '';
+  document.getElementById('eqUsefulLife').value = eq ? (eq.UsefulLifeYears || 0) : 0;
+  document.getElementById('eqSalvageValue').value = eq ? (eq.SalvageValue || 0) : 0;
   openModal('equipmentModalOverlay');
 }
 
@@ -797,7 +824,8 @@ async function submitEquipment() {
     location: document.getElementById('eqLocation').value, quantity: document.getElementById('eqQuantity').value,
     minQuantity: document.getElementById('eqMinQuantity').value, unit: document.getElementById('eqUnit').value,
     unitValue: document.getElementById('eqUnitValue').value, status: document.getElementById('eqStatus').value,
-    dateAcquired: document.getElementById('eqDateAcquired').value
+    dateAcquired: document.getElementById('eqDateAcquired').value,
+    usefulLifeYears: document.getElementById('eqUsefulLife').value, salvageValue: document.getElementById('eqSalvageValue').value
   };
   if (!payload.name) { toast('Name is required', true); return; }
   try {
@@ -857,6 +885,24 @@ async function openEquipmentDetail(id) {
           <button class="btn btn-amber btn-sm" onclick="openTxModal('${id}','Maintenance')">Send for repair</button>
           <button class="btn btn-danger btn-sm" onclick="openTxModal('${id}','Disposal')">Retire</button>
         </div>` : ''}
+      </div>
+      <div class="card">
+        <div class="panel-title">Depreciation <span class="eyebrow">straight-line</span></div>
+        ${Number(e.UsefulLifeYears) > 0 ? `
+          <table>
+            <tr><th>Useful life</th><td>${e.UsefulLifeYears} year(s)</td></tr>
+            <tr><th>Salvage value</th><td>${fmtMoney(e.SalvageValue)} / unit</td></tr>
+            <tr><th>Annual depreciation</th><td>${fmtMoney(e.AnnualDepreciation)} / unit / yr</td></tr>
+            <tr><th>Accumulated</th><td>${fmtMoney(e.AccumulatedDepreciation)} / unit</td></tr>
+            <tr><th>Current book value</th><td><b>${fmtMoney(e.CurrentUnitValue)}</b> / unit &nbsp; (<b>${fmtMoney(e.CurrentTotalValue)}</b> total for ${e.Quantity})</td></tr>
+            <tr><th>Progress</th><td>
+              <div style="background:var(--cloud);border-radius:20px;height:8px;width:160px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px;">
+                <div style="background:${e.FullyDepreciated?'var(--rust)':'var(--amber)'};height:100%;width:${e.PercentDepreciated}%;"></div>
+              </div>
+              ${e.PercentDepreciated}% ${e.FullyDepreciated ? '— fully depreciated' : 'depreciated'}
+            </td></tr>
+          </table>
+        ` : `<div class="empty-state" style="padding:20px 0;">No useful life set for this item — book value equals unit value. Edit the item to add a useful life and depreciation will be tracked automatically.</div>`}
       </div>
       <div class="card">
         <div class="panel-title">Transaction history</div>
@@ -1006,17 +1052,33 @@ async function loadReports() {
   try {
     const r = await api('getReport', {});
     document.getElementById('reportStats').innerHTML = [
-      ['Total ledger value', fmtMoney(r.totalEquipmentValue)],
-      ['Categories tracked', Object.keys(r.itemCountByCategory).length],
+      ['Value at cost', fmtMoney(r.totalEquipmentValue)],
+      ['Book value', fmtMoney(r.totalBookValue)],
+      ['Accumulated depreciation', fmtMoney(r.totalAccumulatedDepreciation)],
       ['Transactions logged', Object.values(r.transactionsByType).reduce((a,b)=>a+b,0)],
     ].map(([label,val]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${val}</div></div>`).join('');
 
     chartValueCat && chartValueCat.destroy();
     chartValueCat = new Chart(document.getElementById('chartValueCat'), {
       type: 'bar',
-      data: { labels: Object.keys(r.valueByCategory), datasets: [{ data: Object.values(r.valueByCategory), backgroundColor: '#E4A93B', borderRadius: 3 }] },
-      options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+      data: {
+        labels: Object.keys(r.valueByCategory),
+        datasets: [
+          { label: 'At cost', data: Object.values(r.valueByCategory), backgroundColor: '#E4A93B', borderRadius: 3 },
+          { label: 'Book value', data: Object.keys(r.valueByCategory).map(c => r.bookValueByCategory[c] || 0), backgroundColor: '#1F6F78', borderRadius: 3 }
+        ]
+      },
+      options: { indexAxis: 'y', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
     });
+
+    document.getElementById('depreciationTable').innerHTML = r.depreciationSchedule.length ? r.depreciationSchedule.map(d => `
+      <tr>
+        <td>${escapeHtml(d.Name)} <span class="id-tag">${escapeHtml(d.EquipmentID)}</span></td>
+        <td>${fmtMoney(d.UnitValue)}</td><td>${fmtMoney(d.SalvageValue)}</td><td>${d.UsefulLifeYears}yr</td>
+        <td>${fmtMoney(d.AnnualDepreciation)}</td><td>${fmtMoney(d.AccumulatedDepreciation)}</td>
+        <td><b>${fmtMoney(d.CurrentUnitValue)}</b></td>
+        <td>${d.FullyDepreciated ? '<span class="badge badge-retired">Fully depreciated</span>' : d.PercentDepreciated + '%'}</td>
+      </tr>`).join('') : '<tr><td colspan="8" style="color:var(--steel-soft);">No items have a useful life set yet — edit an item to start tracking depreciation.</td></tr>';
 
     chartTxType && chartTxType.destroy();
     chartTxType = new Chart(document.getElementById('chartTxType'), {
